@@ -1089,22 +1089,32 @@ function extractPeriod(filename, rows) {
 function processCSV(text, filename) {
   // Remove BOM
   if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
-  const lines = text.split('\n');
-  if (lines.length < 2) return [];
 
-  const header = parseCSVLine(lines[0]).map(h => h.replace(/"/g,'').trim().toLowerCase());
-  const idx = {};
-  header.forEach((h,i) => idx[h] = i);
-
-  // Determine period from filename first (faster)
+  // Determine period from filename
   const periodFromName = (() => {
     const m = filename.match(/(\d{4})(\d{2})/);
     return m ? `${m[1]}-${m[2]}` : null;
   })();
 
+  // Find first newline to get header
+  const firstNL = text.indexOf('\n');
+  if (firstNL < 0) return [];
+  const header = parseCSVLine(text.slice(0, firstNL)).map(h => h.replace(/"/g,'').trim().toLowerCase());
+  const idx = {};
+  header.forEach((h,i) => idx[h] = i);
+
   const rows = [];
-  for (let i = 1; i < lines.length; i++) {
-    const line = lines[i].trim();
+  let pos = firstNL + 1;
+  const len = text.length;
+
+  // Iterate line by line without split() to avoid stack overflow on large files
+  while (pos < len) {
+    // Find end of line (handle \r\n and \n)
+    let end = text.indexOf('\n', pos);
+    if (end < 0) end = len;
+    const line = text.slice(pos, end).trim();
+    pos = end + 1;
+
     if (!line) continue;
     const cols = parseCSVLine(line);
 
